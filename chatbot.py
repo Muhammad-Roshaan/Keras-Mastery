@@ -2,70 +2,57 @@ import random
 import json
 import pickle
 import numpy as np
-import tensorflow as tf
-import keras
-
 import nltk
 from nltk.stem import WordNetLemmatizer
+from keras._tf_keras.keras.models import load_model
 
+lemmatizer = WordNetLemmatizer()
 
-lemmatizer = WordNetLemmatizer
+intents = json.load(open('intense.json'))
+words = pickle.load(open('words.pkl', 'rb'))
+classes = pickle.load(open('classes.pkl', 'rb'))
+model = load_model('chatbot_simplilearnmodel.h5')
 
-intents = json.loads(open('intense.json').read())
+def clean_up_sentence(sentence):
+    sentence_words = nltk.word_tokenize(sentence)
+    sentence_words = [lemmatizer.lemmatize(word) for word in sentence_words]
+    return sentence_words
 
-words = []
-classes = []
-documents = []
-ignoreLetters = ['?','!','.',',']
+def bag_of_words(sentence):
+    sentence_words = clean_up_sentence(sentence)
+    bag = [0] * len(words)
+    for w in sentence_words:
+        for i, word in enumerate(words):
+            if word == w:
+                bag[i] = 1
+    return np.array(bag)
 
-for intent in intents['intents']:
-    for pattern in intents['patterns']:
-        wordList = nltk.word_tokenize(pattern)
-        words.extend(wordList)
-        documents.append((wordList,intent['tag']))
-        if intent['tag'] not in classes
-        classes.append(intent['tag'])
+def predict_class(sentence):
+    bow = bag_of_words(sentence)
+    res = model.predict(np.array([bow]))[0]
 
-words = [lemmatizer.lemmatize(word) for word in words if not any(letter in ignoreLetters for letter in word)]
-words = sorted(set(classes))
+    ERROR_THRESHOLD = 0.25
+    results = [[i, r] for i, r in enumerate(res) if r > ERROR_THRESHOLD]
+    results.sort(key=lambda x: x[1], reverse=True)
+    return_list = []
+    for r in results:
+        return_list.append({'intense': classes[r[0]], 'probability': str(r[1])})
+    return return_list
 
-classes=sorted(set(classes))
+def get_response(intense_list, intense_json):
+    list_of_intents = intense_json['intents']
+    tag = intense_list[0]['intense']
+    for i in list_of_intents:
+        if i['tag'] == tag:
+            result = random.choice(i['responses'])
+            break
+    return result
 
-pickle.dump(words,open('words.pk1','wb'))
-pickle.dump(classes,open('Classes.pk1','wb'))
+print("Great! Bot is Running!")
 
-training = []
-outputEmpty = [0] * len(classes)
-
-for document in documents:
-    bag=[]
-    wordPatterns = documents[0]
-    wordPatterns = [lemmatizer.lemmatize(word.lower().strip()) for words in wordPatterns]
-    for word in words: bag.append(1) if word in wordPatterns else bag.append(0)
-
-    outputrow = list(outputEmpty)
-    outputrow[classes.indexdocument[1]] = 1
-    training.append(bag + outputrow)
-
-random.shuffle(training)
-training  = np.append(training)
-
-trainX = training[:, :len(words)]
-trainY = training[:, :len(words):]
-
-model = keras.Sequential()
-
-model.add(keras.layers.Dense(128,))
-
-
-
-
-# strip
-
-
-
-
-
-
-
+while True:
+    message = input("")
+    ints = predict_class(message)
+    res = get_response(ints, intents)
+    print(res)
 
